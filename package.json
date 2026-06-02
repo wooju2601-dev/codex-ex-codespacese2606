@@ -1,0 +1,39 @@
+{
+  "name": "codex-ex-codespacese2606",
+  "version": "1.0.0",
+  "description": "Express REST API example",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "server": "node server.js",
+    "client": "vite --config client/vite.config.js --host 0.0.0.0",
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "build": "vite build --config client/vite.config.js",
+    "check": "npm run build && npm run smoke",
+    "smoke": "node scripts/smoke-test.js"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "^6.0.2",
+    "autoprefixer": "^10.5.0",
+    "concurrently": "^10.0.3",
+    "express": "^4.22.2",
+    "lucide-react": "^1.17.0",
+    "postcss": "^8.5.15",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "tailwindcss": "^3.4.17",
+    "vite": "^8.0.16"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wooju2601-dev/codex-ex-codespacese2606.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/wooju2601-dev/codex-ex-codespacese2606/issues"
+  },
+  "homepage": "https://github.com/wooju2601-dev/codex-ex-codespacese2606#readme"
+}
