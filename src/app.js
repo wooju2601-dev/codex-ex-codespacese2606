@@ -108,17 +108,35 @@ app.delete('/cars/:id', (req, res) => {
 });
 
 // 배포 환경에서는 React 빌드 결과를 Express가 함께 제공합니다.
-const clientDistPath = path.join(__dirname, '..', 'client', 'dist');
-const clientIndexPath = path.join(clientDistPath, 'index.html');
-app.use(express.static(clientDistPath));
+// Render / 로컬 환경에서 빌드 위치가 달라질 수 있어서 여러 후보 경로를 검사합니다.
+const candidateDistPaths = [
+  path.join(__dirname, '..', 'client', 'dist'),
+  path.join(process.cwd(), 'client', 'dist'),
+  path.join(process.cwd(), 'dist'),
+  path.join(__dirname, '..', 'dist'),
+  path.join(__dirname, '..', 'client', 'client', 'dist'),
+];
+
+const clientDistPath = candidateDistPaths.find((distPath) =>
+  fs.existsSync(path.join(distPath, 'index.html'))
+);
+
+if (clientDistPath) {
+  app.use(express.static(clientDistPath));
+}
 
 // API가 아닌 요청은 React 화면으로 연결합니다.
 app.get('*', (req, res) => {
-  if (!fs.existsSync(clientIndexPath)) {
-    return res.status(404).json({ message: 'React build not found. Run npm run build first.' });
+  if (!clientDistPath) {
+    return res.status(404).json({
+      message: 'React build not found. Run npm run build first.',
+      checkedPaths: candidateDistPaths,
+      cwd: process.cwd(),
+      dirname: __dirname,
+    });
   }
 
-  res.sendFile(clientIndexPath);
+  res.sendFile(path.join(clientDistPath, 'index.html'));
 });
 
 module.exports = app;
