@@ -1,5 +1,21 @@
 import { useEffect, useState } from 'react';
-import { Building2, Car, Check, Gauge, Pencil, Plus, RefreshCcw, Search, Trash2, WalletCards } from 'lucide-react';
+import {
+  Building2,
+  Car,
+  Check,
+  Gauge,
+  LogOut,
+  Pencil,
+  Plus,
+  RefreshCcw,
+  Search,
+  ShieldCheck,
+  Trash2,
+  WalletCards,
+} from 'lucide-react';
+import { useAuth } from './context/AuthContext.jsx';
+import Login from './pages/Login.jsx';
+import Register from './pages/Register.jsx';
 
 const emptyForm = {
   name: '',
@@ -9,6 +25,8 @@ const emptyForm = {
 };
 
 function App() {
+  const { user, userProfile, loading, logout, isConfigured } = useAuth();
+  const [authMode, setAuthMode] = useState('login');
   const [cars, setCars] = useState([]);
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState(null);
@@ -30,8 +48,10 @@ function App() {
   };
 
   useEffect(() => {
-    loadCars();
-  }, []);
+    if (user) {
+      loadCars();
+    }
+  }, [user]);
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -76,7 +96,7 @@ function App() {
       price: String(car.price),
       year: String(car.year),
     });
-    setMessage(car.name + ' 수정 모드입니다.');
+    setMessage(`${car.name} 수정 모드입니다.`);
   };
 
   const handleDelete = async (id) => {
@@ -87,10 +107,10 @@ function App() {
 
   const searchByCompany = async () => {
     const query = company ? `?company=${encodeURIComponent(company.toUpperCase())}` : '';
-    const response = await fetch('/cars/search' + query);
+    const response = await fetch(`/cars/search${query}`);
     const data = await response.json();
     setCars(data);
-    setMessage(company ? company.toUpperCase() + ' 검색 결과입니다.' : '전체 목록을 불러왔습니다.');
+    setMessage(company ? `${company.toUpperCase()} 검색 결과입니다.` : '전체 목록을 불러왔습니다.');
   };
 
   const filterByPrice = async () => {
@@ -104,15 +124,42 @@ function App() {
       params.append('maxPrice', maxPrice);
     }
 
-    const query = params.toString() ? '?' + params.toString() : '';
-    const response = await fetch('/cars/filter' + query);
+    const query = params.toString() ? `?${params.toString()}` : '';
+    const response = await fetch(`/cars/filter${query}`);
     const data = await response.json();
     setCars(data);
     setMessage('가격 필터 결과입니다.');
   };
 
+  if (loading) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-50 text-slate-700">
+        로그인 상태를 확인하는 중입니다.
+      </main>
+    );
+  }
+
+  if (!user) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
+        <section className="w-full">
+          {!isConfigured && (
+            <div className="mx-auto mb-4 max-w-sm rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              Firebase 설정이 필요합니다. `client/.env.example`을 참고해 `client/.env`를 생성하세요.
+            </div>
+          )}
+          {authMode === 'login' ? (
+            <Login onSwitchToRegister={() => setAuthMode('register')} />
+          ) : (
+            <Register onSwitchToLogin={() => setAuthMode('login')} />
+          )}
+        </section>
+      </main>
+    );
+  }
+
   return (
-    <main className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 text-zinc-950">
+    <main className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 text-slate-950">
       <section className="bg-blue-700 text-white">
         <div className="mx-auto w-full max-w-6xl px-4 py-7 sm:px-6">
           <div className="flex flex-col items-center gap-5 text-center lg:flex-row lg:items-end lg:justify-between lg:text-left">
@@ -121,38 +168,63 @@ function App() {
                 <Car size={16} /> Car Manager
               </div>
               <h1 className="text-3xl font-bold tracking-normal text-white md:text-4xl">자동차 재고 관리</h1>
-              <p className="mt-3 max-w-2xl text-base leading-7 text-blue-100">Express REST API와 연결된 React 카드형 대시보드입니다.</p>
+              <p className="mt-3 max-w-2xl text-base leading-7 text-blue-100">
+                Firebase Authentication으로 로그인한 사용자만 자동차 데이터를 관리합니다.
+              </p>
             </div>
-            <button type="button" onClick={loadCars} className="primary-button bg-white px-4 text-blue-700 hover:bg-blue-50">
-              <RefreshCcw size={17} />
-              전체 목록
-            </button>
+            <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
+              <div className="rounded-md bg-white/15 px-3 py-2 text-left text-sm ring-1 ring-white/25">
+                <div className="flex items-center gap-2 font-semibold">
+                  <ShieldCheck size={16} />
+                  {user.email}
+                </div>
+                <div className="mt-0.5 text-blue-100">
+                  {userProfile?.userType === 'dealer' ? '딜러' : '일반 사용자'}
+                </div>
+              </div>
+              <button type="button" onClick={loadCars} className="primary-button bg-white px-4 text-blue-700 hover:bg-blue-50">
+                <RefreshCcw size={17} />
+                전체 목록
+              </button>
+              <button type="button" onClick={logout} className="primary-button bg-slate-950 px-4 text-white hover:bg-slate-800">
+                <LogOut size={17} />
+                로그아웃
+              </button>
+            </div>
           </div>
 
           <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <div className="metric-card border-l-4 border-l-blue-500">
-              <div className="metric-icon bg-emerald-100 text-emerald-700"><Car size={21} /></div>
+              <div className="metric-icon bg-emerald-100 text-emerald-700">
+                <Car size={21} />
+              </div>
               <div>
                 <p className="metric-label">등록 차량</p>
                 <p className="metric-value">{cars.length}대</p>
               </div>
             </div>
             <div className="metric-card border-l-4 border-l-green-500">
-              <div className="metric-icon bg-sky-100 text-sky-700"><Building2 size={21} /></div>
+              <div className="metric-icon bg-sky-100 text-sky-700">
+                <Building2 size={21} />
+              </div>
               <div>
                 <p className="metric-label">제조사</p>
                 <p className="metric-value">{companyCount}개</p>
               </div>
             </div>
             <div className="metric-card border-l-4 border-l-yellow-500">
-              <div className="metric-icon bg-amber-100 text-amber-700"><WalletCards size={21} /></div>
+              <div className="metric-icon bg-amber-100 text-amber-700">
+                <WalletCards size={21} />
+              </div>
               <div>
                 <p className="metric-label">평균 가격</p>
                 <p className="metric-value">{averagePrice.toLocaleString()}만원</p>
               </div>
             </div>
             <div className="metric-card border-l-4 border-l-red-500">
-              <div className="metric-icon bg-violet-100 text-violet-700"><Gauge size={21} /></div>
+              <div className="metric-icon bg-violet-100 text-violet-700">
+                <Gauge size={21} />
+              </div>
               <div>
                 <p className="metric-label">최신 연식</p>
                 <p className="metric-value">{newestYear}</p>
@@ -167,19 +239,19 @@ function App() {
           <form onSubmit={handleSubmit} className="panel p-5">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <h2 className="text-lg font-bold text-zinc-950">{editingId ? '자동차 수정' : '자동차 추가'}</h2>
-                <p className="mt-1 text-sm text-zinc-500">입력 후 바로 API에 저장됩니다.</p>
+                <h2 className="text-lg font-bold text-slate-950">{editingId ? '자동차 수정' : '자동차 추가'}</h2>
+                <p className="mt-1 text-sm text-slate-500">입력한 내용은 API에 저장됩니다.</p>
               </div>
               <span className="status-chip bg-emerald-50 text-emerald-700">CRUD</span>
             </div>
             <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
               <input className="input" name="name" value={form.name} onChange={handleChange} placeholder="이름" required />
-              <input className="input" name="company" value={form.company} onChange={handleChange} placeholder="회사 예: HYUNDAI" required />
+              <input className="input" name="company" value={form.company} onChange={handleChange} placeholder="회사명 예: HYUNDAI" required />
               <input className="input" name="price" value={form.price} onChange={handleChange} placeholder="가격" type="number" required />
               <input className="input" name="year" value={form.year} onChange={handleChange} placeholder="연식" type="number" required />
             </div>
             <div className="mt-4 flex gap-2">
-              <button className={editingId ? 'primary-button flex-1 bg-yellow-400 text-zinc-950 hover:bg-yellow-300' : 'primary-button flex-1 bg-blue-600 hover:bg-blue-700'} type="submit">
+              <button className={editingId ? 'primary-button flex-1 bg-yellow-400 text-slate-950 hover:bg-yellow-300' : 'primary-button flex-1 bg-blue-600 hover:bg-blue-700'} type="submit">
                 {editingId ? <Check size={17} /> : <Plus size={17} />}
                 {editingId ? '수정 완료' : '추가'}
               </button>
@@ -193,17 +265,17 @@ function App() {
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1">
             <div className="panel p-5">
-              <h2 className="text-lg font-bold text-zinc-950">회사 검색</h2>
+              <h2 className="text-lg font-bold text-slate-950">회사 검색</h2>
               <div className="mt-4 flex gap-2">
                 <input className="input" value={company} onChange={(event) => setCompany(event.target.value)} placeholder="HYUNDAI" />
-                <button className="icon-button bg-zinc-950 text-white hover:bg-zinc-800" type="button" onClick={searchByCompany} aria-label="회사 검색">
+                <button className="icon-button bg-slate-950 text-white hover:bg-slate-800" type="button" onClick={searchByCompany} aria-label="회사 검색">
                   <Search size={18} />
                 </button>
               </div>
             </div>
 
             <div className="panel p-5">
-              <h2 className="text-lg font-bold text-zinc-950">가격 필터</h2>
+              <h2 className="text-lg font-bold text-slate-950">가격 필터</h2>
               <div className="mt-4 grid grid-cols-2 gap-2">
                 <input className="input" value={minPrice} onChange={(event) => setMinPrice(event.target.value)} placeholder="최소" type="number" />
                 <input className="input" value={maxPrice} onChange={(event) => setMaxPrice(event.target.value)} placeholder="최대" type="number" />
@@ -219,19 +291,19 @@ function App() {
         <section className="space-y-4">
           <div className="panel flex flex-col gap-3 p-5 md:flex-row md:items-center md:justify-between">
             <div>
-              <h2 className="text-xl font-bold text-zinc-950">차량 카드 목록</h2>
-              <p className="mt-1 text-sm text-zinc-500">현재 화면에 {cars.length}대가 표시됩니다.</p>
+              <h2 className="text-xl font-bold text-slate-950">차량 카드 목록</h2>
+              <p className="mt-1 text-sm text-slate-500">현재 화면에 {cars.length}대가 표시됩니다.</p>
             </div>
             <p className="status-message">{message || '목록을 불러오는 중입니다.'}</p>
           </div>
 
           {cars.length === 0 ? (
             <div className="panel flex min-h-80 flex-col items-center justify-center px-5 py-12 text-center">
-              <div className="flex h-16 w-16 items-center justify-center rounded-md bg-zinc-100 text-zinc-400">
+              <div className="flex h-16 w-16 items-center justify-center rounded-md bg-slate-100 text-slate-400">
                 <Car size={36} />
               </div>
-              <p className="mt-4 text-lg font-bold text-zinc-800">표시할 자동차가 없습니다.</p>
-              <p className="mt-2 text-sm text-zinc-500">검색어나 가격 조건을 바꾸거나 전체 목록을 다시 불러오세요.</p>
+              <p className="mt-4 text-lg font-bold text-slate-800">표시할 자동차가 없습니다.</p>
+              <p className="mt-2 text-sm text-slate-500">검색어나 가격 조건을 바꾸거나 전체 목록을 다시 불러오세요.</p>
             </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
@@ -239,9 +311,9 @@ function App() {
                 <article key={car._id} className="car-card">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <span className="status-chip bg-zinc-100 text-zinc-700">{car.company}</span>
-                      <h3 className="mt-3 text-2xl font-bold text-zinc-950">{car.name}</h3>
-                      <p className="mt-1 text-sm text-zinc-400">ID {car._id}</p>
+                      <span className="status-chip bg-slate-100 text-slate-700">{car.company}</span>
+                      <h3 className="mt-3 text-2xl font-bold text-slate-950">{car.name}</h3>
+                      <p className="mt-1 text-sm text-slate-400">ID {car._id}</p>
                     </div>
                     <div className="flex h-12 w-12 items-center justify-center rounded-md bg-emerald-50 text-emerald-700">
                       <Car size={25} />
@@ -255,11 +327,11 @@ function App() {
                     </div>
                     <div className="info-box">
                       <p className="info-label">연식</p>
-                      <p className="info-value text-zinc-900">{car.year}</p>
+                      <p className="info-value text-slate-900">{car.year}</p>
                     </div>
                   </div>
 
-                  <div className="mt-5 flex gap-2 border-t border-zinc-100 pt-4">
+                  <div className="mt-5 flex gap-2 border-t border-slate-100 pt-4">
                     <button className="edit-button flex-1" type="button" onClick={() => handleEdit(car)}>
                       <Pencil size={16} />
                       수정
