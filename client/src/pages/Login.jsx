@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { browserLocalPersistence, setPersistence, signInWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '../firebase';
+import { useAuth } from '../context/AuthContext.jsx';
 
 export default function Login({ onSwitchToRegister }) {
+  const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -12,15 +12,9 @@ export default function Login({ onSwitchToRegister }) {
     event.preventDefault();
     setError('');
 
-    if (!auth) {
-      setError('Firebase 환경변수를 client/.env에 설정해 주세요.');
-      return;
-    }
-
     try {
       setSubmitting(true);
-      await setPersistence(auth, browserLocalPersistence);
-      await signInWithEmailAndPassword(auth, email, password);
+      await login(email, password);
     } catch (err) {
       setError(err.message);
     } finally {

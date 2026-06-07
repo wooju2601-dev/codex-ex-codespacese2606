@@ -13,6 +13,8 @@ import {
   Trash2,
   WalletCards,
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { apiUrl } from './config.js';
 import { useAuth } from './context/AuthContext.jsx';
 import Login from './pages/Login.jsx';
 import Register from './pages/Register.jsx';
@@ -22,6 +24,21 @@ const emptyForm = {
   company: '',
   price: '',
   year: '',
+  type: 'sedan',
+  fuel: 'gasoline',
+  mileage: '',
+  location: '',
+  description: '',
+  dealerName: '',
+};
+
+const emptySearch = {
+  keyword: '',
+  company: '',
+  minPrice: '',
+  maxPrice: '',
+  minYear: '',
+  maxYear: '',
 };
 
 function App() {
@@ -29,10 +46,10 @@ function App() {
   const [authMode, setAuthMode] = useState('login');
   const [cars, setCars] = useState([]);
   const [form, setForm] = useState(emptyForm);
+  const [image, setImage] = useState(null);
+  const [fileInputKey, setFileInputKey] = useState(0);
   const [editingId, setEditingId] = useState(null);
-  const [company, setCompany] = useState('');
-  const [minPrice, setMinPrice] = useState('');
-  const [maxPrice, setMaxPrice] = useState('');
+  const [search, setSearch] = useState(emptySearch);
   const [message, setMessage] = useState('');
 
   const totalPrice = cars.reduce((sum, car) => sum + car.price, 0);
@@ -41,7 +58,7 @@ function App() {
   const companyCount = new Set(cars.map((car) => car.company)).size;
 
   const loadCars = async () => {
-    const response = await fetch('/cars');
+    const response = await fetch(apiUrl('/cars'));
     const data = await response.json();
     setCars(data);
     setMessage('전체 목록을 불러왔습니다.');
@@ -60,6 +77,8 @@ function App() {
 
   const resetForm = () => {
     setForm(emptyForm);
+    setImage(null);
+    setFileInputKey((currentKey) => currentKey + 1);
     setEditingId(null);
   };
 
@@ -67,25 +86,65 @@ function App() {
     event.preventDefault();
 
     const isEditing = Boolean(editingId);
-    const carData = {
-      name: form.name,
-      company: form.company.toUpperCase(),
-      price: Number(form.price),
-      year: Number(form.year),
-    };
+    try {
+      if (isEditing) {
+        const response = await fetch(apiUrl(`/cars/${editingId}`), {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: form.name,
+            company: form.company.toUpperCase(),
+            price: Number(form.price),
+            year: Number(form.year),
+            type: form.type,
+            fuel: form.fuel,
+            mileage: Number(form.mileage),
+            location: form.location,
+            description: form.description,
+            dealerName: form.dealerName,
+          }),
+        });
 
-    const url = isEditing ? `/cars/${editingId}` : '/cars';
-    const method = isEditing ? 'PUT' : 'POST';
+        if (!response.ok) {
+          throw new Error('자동차 수정에 실패했습니다.');
+        }
 
-    await fetch(url, {
-      method,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(carData),
-    });
+        resetForm();
+        await loadCars();
+        setMessage('자동차 정보를 수정했습니다.');
+        return;
+      }
 
-    resetForm();
-    await loadCars();
-    setMessage(isEditing ? '자동차 정보를 수정했습니다.' : '새 자동차를 추가했습니다.');
+      const formData = new FormData();
+      formData.append('name', form.name);
+      formData.append('company', form.company);
+      formData.append('price', form.price);
+      formData.append('year', form.year);
+      formData.append('type', form.type);
+      formData.append('fuel', form.fuel);
+      formData.append('mileage', form.mileage);
+      formData.append('location', form.location);
+      formData.append('description', form.description);
+      formData.append('dealerId', user.uid);
+      formData.append('dealerName', form.dealerName);
+      formData.append('image', image);
+
+      const response = await fetch(apiUrl('/api/cars'), {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || '자동차 등록에 실패했습니다.');
+      }
+
+      setCars((currentCars) => [data, ...currentCars]);
+      resetForm();
+      setMessage('새 자동차와 사진을 MongoDB에 등록했습니다.');
+    } catch (error) {
+      setMessage(error.message);
+    }
   };
 
   const handleEdit = (car) => {
@@ -95,40 +154,53 @@ function App() {
       company: car.company,
       price: String(car.price),
       year: String(car.year),
+      type: car.type || 'sedan',
+      fuel: car.fuel || 'gasoline',
+      mileage: String(car.mileage || ''),
+      location: car.location || '',
+      description: car.description || '',
+      dealerName: car.dealerName || '',
     });
     setMessage(`${car.name} 수정 모드입니다.`);
   };
 
   const handleDelete = async (id) => {
-    await fetch(`/cars/${id}`, { method: 'DELETE' });
+    await fetch(apiUrl(`/cars/${id}`), { method: 'DELETE' });
     await loadCars();
     setMessage('자동차를 삭제했습니다.');
   };
 
-  const searchByCompany = async () => {
-    const query = company ? `?company=${encodeURIComponent(company.toUpperCase())}` : '';
-    const response = await fetch(`/cars/search${query}`);
-    const data = await response.json();
-    setCars(data);
-    setMessage(company ? `${company.toUpperCase()} 검색 결과입니다.` : '전체 목록을 불러왔습니다.');
+  const handleSearchChange = (event) => {
+    const { name, value } = event.target;
+    setSearch({ ...search, [name]: value });
   };
 
-  const filterByPrice = async () => {
+  const handleSearch = async (event) => {
+    event.preventDefault();
     const params = new URLSearchParams();
 
-    if (minPrice) {
-      params.append('minPrice', minPrice);
-    }
-
-    if (maxPrice) {
-      params.append('maxPrice', maxPrice);
-    }
+    Object.entries(search).forEach(([key, value]) => {
+      if (value.trim()) {
+        params.append(key, value.trim());
+      }
+    });
 
     const query = params.toString() ? `?${params.toString()}` : '';
-    const response = await fetch(`/cars/filter${query}`);
+    const response = await fetch(apiUrl(`/api/cars/search${query}`));
     const data = await response.json();
+
+    if (!response.ok) {
+      setMessage(data.message || '검색에 실패했습니다.');
+      return;
+    }
+
     setCars(data);
-    setMessage('가격 필터 결과입니다.');
+    setMessage(`검색 결과 ${data.length}대를 찾았습니다.`);
+  };
+
+  const resetSearch = async () => {
+    setSearch(emptySearch);
+    await loadCars();
   };
 
   if (loading) {
@@ -249,6 +321,35 @@ function App() {
               <input className="input" name="company" value={form.company} onChange={handleChange} placeholder="회사명 예: HYUNDAI" required />
               <input className="input" name="price" value={form.price} onChange={handleChange} placeholder="가격" type="number" required />
               <input className="input" name="year" value={form.year} onChange={handleChange} placeholder="연식" type="number" required />
+              <select className="input" name="type" value={form.type} onChange={handleChange} required>
+                <option value="sedan">세단</option>
+                <option value="suv">SUV</option>
+                <option value="hatchback">해치백</option>
+                <option value="truck">트럭</option>
+                <option value="van">밴</option>
+              </select>
+              <select className="input" name="fuel" value={form.fuel} onChange={handleChange} required>
+                <option value="gasoline">가솔린</option>
+                <option value="diesel">디젤</option>
+                <option value="hybrid">하이브리드</option>
+                <option value="electric">전기</option>
+                <option value="lpg">LPG</option>
+              </select>
+              <input className="input" name="mileage" value={form.mileage} onChange={handleChange} placeholder="주행거리(km)" type="number" min="0" required />
+              <input className="input" name="location" value={form.location} onChange={handleChange} placeholder="지역 예: 서울" required />
+              <input className="input" name="dealerName" value={form.dealerName} onChange={handleChange} placeholder="딜러 이름" required />
+              <textarea className="input min-h-24 resize-y" name="description" value={form.description} onChange={handleChange} placeholder="차량 설명" />
+              {!editingId && (
+                <input
+                  key={fileInputKey}
+                  className="input"
+                  name="image"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  onChange={(event) => setImage(event.target.files[0] || null)}
+                  required
+                />
+              )}
             </div>
             <div className="mt-4 flex gap-2">
               <button className={editingId ? 'primary-button flex-1 bg-yellow-400 text-slate-950 hover:bg-yellow-300' : 'primary-button flex-1 bg-blue-600 hover:bg-blue-700'} type="submit">
@@ -263,29 +364,31 @@ function App() {
             </div>
           </form>
 
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1">
-            <div className="panel p-5">
-              <h2 className="text-lg font-bold text-slate-950">회사 검색</h2>
-              <div className="mt-4 flex gap-2">
-                <input className="input" value={company} onChange={(event) => setCompany(event.target.value)} placeholder="HYUNDAI" />
-                <button className="icon-button bg-slate-950 text-white hover:bg-slate-800" type="button" onClick={searchByCompany} aria-label="회사 검색">
-                  <Search size={18} />
-                </button>
+          <form className="panel p-5" onSubmit={handleSearch}>
+            <h2 className="text-lg font-bold text-slate-950">차량 복합 검색</h2>
+            <p className="mt-1 text-sm text-slate-500">입력한 조건을 모두 만족하는 차량을 검색합니다.</p>
+            <div className="mt-4 grid gap-2">
+              <input className="input" name="keyword" value={search.keyword} onChange={handleSearchChange} placeholder="차량명 예: Sonata" />
+              <input className="input" name="company" value={search.company} onChange={handleSearchChange} placeholder="제조사 예: HYUNDAI" />
+              <div className="grid grid-cols-2 gap-2">
+                <input className="input" name="minPrice" value={search.minPrice} onChange={handleSearchChange} placeholder="최소 가격" type="number" min="0" />
+                <input className="input" name="maxPrice" value={search.maxPrice} onChange={handleSearchChange} placeholder="최대 가격" type="number" min="0" />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <input className="input" name="minYear" value={search.minYear} onChange={handleSearchChange} placeholder="최소 연식" type="number" />
+                <input className="input" name="maxYear" value={search.maxYear} onChange={handleSearchChange} placeholder="최대 연식" type="number" />
               </div>
             </div>
-
-            <div className="panel p-5">
-              <h2 className="text-lg font-bold text-slate-950">가격 필터</h2>
-              <div className="mt-4 grid grid-cols-2 gap-2">
-                <input className="input" value={minPrice} onChange={(event) => setMinPrice(event.target.value)} placeholder="최소" type="number" />
-                <input className="input" value={maxPrice} onChange={(event) => setMaxPrice(event.target.value)} placeholder="최대" type="number" />
-              </div>
-              <button className="primary-button mt-3 w-full bg-green-600 hover:bg-green-700" type="button" onClick={filterByPrice}>
+            <div className="mt-3 flex gap-2">
+              <button className="primary-button flex-1 bg-green-600 hover:bg-green-700" type="submit">
                 <Search size={17} />
-                필터 적용
+                검색
+              </button>
+              <button className="secondary-button" type="button" onClick={resetSearch}>
+                초기화
               </button>
             </div>
-          </div>
+          </form>
         </aside>
 
         <section className="space-y-4">
@@ -309,6 +412,13 @@ function App() {
             <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
               {cars.map((car) => (
                 <article key={car._id} className="car-card">
+                  {car.imageUrl && (
+                    <img
+                      className="mb-4 h-44 w-full rounded-md object-cover"
+                      src={apiUrl(car.imageUrl)}
+                      alt={`${car.name} 차량`}
+                    />
+                  )}
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <span className="status-chip bg-slate-100 text-slate-700">{car.company}</span>
@@ -332,6 +442,9 @@ function App() {
                   </div>
 
                   <div className="mt-5 flex gap-2 border-t border-slate-100 pt-4">
+                    <Link className="secondary-button flex-1" to={`/cars/${car._id}`}>
+                      상세 보기
+                    </Link>
                     <button className="edit-button flex-1" type="button" onClick={() => handleEdit(car)}>
                       <Pencil size={16} />
                       수정
