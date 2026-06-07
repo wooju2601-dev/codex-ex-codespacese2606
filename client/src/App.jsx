@@ -58,8 +58,14 @@ function App() {
   const companyCount = new Set(cars.map((car) => car.company)).size;
 
   const loadCars = async () => {
-    const response = await fetch(apiUrl('/cars'));
+    const response = await fetch(apiUrl('/api/cars'));
     const data = await response.json();
+
+    if (!response.ok) {
+      setMessage(data.message || '자동차 목록을 불러오지 못했습니다.');
+      return;
+    }
+
     setCars(data);
     setMessage('전체 목록을 불러왔습니다.');
   };
@@ -88,7 +94,7 @@ function App() {
     const isEditing = Boolean(editingId);
     try {
       if (isEditing) {
-        const response = await fetch(apiUrl(`/cars/${editingId}`), {
+        const response = await fetch(apiUrl(`/api/cars/${editingId}`), {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -165,7 +171,14 @@ function App() {
   };
 
   const handleDelete = async (id) => {
-    await fetch(apiUrl(`/cars/${id}`), { method: 'DELETE' });
+    const response = await fetch(apiUrl(`/api/cars/${id}`), { method: 'DELETE' });
+    const data = await response.json();
+
+    if (!response.ok) {
+      setMessage(data.message || '자동차 삭제에 실패했습니다.');
+      return;
+    }
+
     await loadCars();
     setMessage('자동차를 삭제했습니다.');
   };

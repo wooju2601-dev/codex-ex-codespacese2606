@@ -158,6 +158,84 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+// ObjectId로 차량 정보를 수정합니다.
+router.put('/:id', async (req, res) => {
+  if (!ObjectId.isValid(req.params.id)) {
+    return res.status(400).json({ message: '올바르지 않은 차량 ID입니다.' });
+  }
+
+  try {
+    const carsCollection = getCollection('cars');
+    const id = new ObjectId(req.params.id);
+    const updates = {
+      ...req.body,
+      updatedAt: new Date(),
+    };
+
+    // MongoDB 식별자와 최초 등록일은 수정하지 않습니다.
+    delete updates._id;
+    delete updates.createdAt;
+
+    const result = await carsCollection.updateOne(
+      { _id: id },
+      { $set: updates },
+    );
+
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ message: '차량을 찾을 수 없습니다.' });
+    }
+
+    const updatedCar = await carsCollection.findOne({ _id: id });
+    res.json(updatedCar);
+  } catch (error) {
+    console.error('[PUT /api/cars/:id] 수정 실패:', error);
+    res.status(500).json({ message: '차량 수정에 실패했습니다.' });
+  }
+});
+
+// ObjectId로 차량을 삭제합니다.
+router.delete('/:id', async (req, res) => {
+  if (!ObjectId.isValid(req.params.id)) {
+    return res.status(400).json({ message: '올바르지 않은 차량 ID입니다.' });
+  }
+
+  try {
+    const carsCollection = getCollection('cars');
+    const id = new ObjectId(req.params.id);
+    const car = await carsCollection.findOne({ _id: id });
+
+    if (!car) {
+      return res.status(404).json({ message: '차량을 찾을 수 없습니다.' });
+    }
+
+    const result = await carsCollection.deleteOne({ _id: id });
+
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ message: '차량을 찾을 수 없습니다.' });
+    }
+
+    res.json(car);
+  } catch (error) {
+    console.error('[DELETE /api/cars/:id] 삭제 실패:', error);
+    res.status(500).json({ message: '차량 삭제에 실패했습니다.' });
+  }
+});
+
+
+router.get('/', async (req, res) => {
+  try {
+    const cars = await getCollection('cars')
+      .find({})
+      .sort({ createdAt: -1 })
+      .toArray();
+
+    res.json(cars);
+  } catch (error) {
+    console.error('[GET /api/cars] 조회 실패:', error);
+    res.status(500).json({ message: '차량 목록을 불러오지 못했습니다.' });
+  }
+});
+
 // 차량 정보와 사진을 함께 받아 MongoDB에 저장합니다.
 router.post('/', upload.single('image'), async (req, res) => {
   try {
